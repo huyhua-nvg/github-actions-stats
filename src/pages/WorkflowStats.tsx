@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Center, Flex, HStack, Spinner, Button } from "@chakra-ui/react"
+import {Box, Center, Flex, HStack, Spinner, Button } from "@chakra-ui/react"
 import { Octokit } from "@octokit/rest";
 import {
     VictoryAxis,
@@ -9,6 +9,7 @@ import {
     VictoryTooltip,
     VictoryVoronoiContainer
 } from 'victory';
+import { DetailsTable } from "./DetailsTable";
 
 const octokit = new Octokit({
     auth: process.env.REACT_APP_GITHUB_TOKEN
@@ -35,16 +36,20 @@ const conclusion2colorScheme = {
 }
 const capitalize = s => s && s[0].toUpperCase() + s.slice(1)
 
+type RunDetails = {
+    user: string,
+    url: string,
+    branch: string,
+}
 type RunResults = {
     duration: number,
-    details: {
-        url: string
-    }
+    details: RunDetails,
 }
 
 export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
     const [workflowRunsStats, setWorkflowRunsStats] = useState<any>({})
     const [selectedConclusion, setSelectedConclusion] = useState<Conclusions>("success")
+    const [selectedDatum, setSelectedDatum] = useState<RunDetails[] | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -87,7 +92,14 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                     }
                     const updatedAtTime = Date.parse(run.updated_at)
                     const durationMs = updatedAtTime - createdAtTime
-                    stats.durations[run.conclusion].push({duration: durationMs / 1000, details:{ url: run.html_url}})
+                    stats.durations[run.conclusion].push({
+                        duration: durationMs / 1000,
+                        details: {
+                            user: (run as any).actor.login,
+                            url: run.html_url,
+                            branch: run.head_branch,
+                        }
+                    })
 
                     stats.earliestRun = Math.min(stats.earliestRun, createdAtTime)
                     stats.latestRun = Math.max(stats.latestRun, createdAtTime)
@@ -198,8 +210,9 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                                                         target: "data",
                                                         mutation: (props) => {
                                                             for (const d of props.datum.binnedData) {
-                                                                console.log(d.details.url)
+                                                                console.log(d.details.url, d.details)
                                                             }
+                                                            setSelectedDatum(props.datum.binnedData.map(a => (a.details)))
                                                             return null;
                                                         }
                                                     }
@@ -209,6 +222,11 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                                     }]}
                                 />
                             </VictoryChart>
+                        </Flex>
+                        <Flex>
+                            {selectedDatum &&
+                                <DetailsTable data={selectedDatum}/>
+                            }
                         </Flex>
                     </Box>
                 )
