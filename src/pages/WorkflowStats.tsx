@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Center, Flex, HStack, Spinner, Tag } from "@chakra-ui/react"
+import { Box, Center, Flex, HStack, Spinner, Button } from "@chakra-ui/react"
 import { Octokit } from "@octokit/rest";
 import {
     VictoryAxis,
@@ -19,9 +19,25 @@ type Props = {
     repo: string
     workflowId: number
 }
+const conclusionValues = [
+    "success" ,
+    "failure" ,
+    "cancelled" ,
+    "startup_failure"
+] as const;
+type Conclusions = typeof conclusionValues[number];
+
+const conclusion2colorScheme = {
+    "success": "green",
+    "failure": "red",
+    "cancelled": "yellow",
+    "startup_failure": "facebook"
+}
+const capitalize = s => s && s[0].toUpperCase() + s.slice(1)
 
 export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
     const [workflowRunsStats, setWorkflowRunsStats] = useState<any>({})
+    const [selectedConclusion, setSelectedConclusion] = useState<Conclusions>("success")
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -77,6 +93,9 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
         })
     }, [owner, repo, workflowId])
 
+    const handleConclusionSelection = (selection: Conclusions) => {
+        setSelectedConclusion(selection);
+    }
     return (
         <>
             {loading &&
@@ -108,19 +127,12 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                                 <Flex>Total Runs: {workflowRunsStats.totalRuns}</Flex>
 
                                 <HStack spacing={4}>
-                                    <Tag size="lg" borderRadius="full" colorScheme="green">
-                                        {workflowRunsStats.conclusion.success} Successes
-                                    </Tag>
-                                    <Tag size="lg" borderRadius="full" colorScheme="red">
-                                        {workflowRunsStats.conclusion.failure} Failures
-                                    </Tag>
-                                    <Tag size="lg" borderRadius="full" colorScheme="yellow">
-                                        {workflowRunsStats.conclusion.cancelled} Cancelled
-                                    </Tag>
-                                    <Tag size="lg" borderRadius="full" colorScheme="facebook">
-                                        {workflowRunsStats.conclusion.startup_failure} Startup Failures
-                                    </Tag>
-
+                                    {conclusionValues.map(v => (
+                                        <Button size="lg" borderRadius="full" colorScheme={conclusion2colorScheme[v]}
+                                                onClick={handleConclusionSelection.bind(null, v)}>
+                                            {workflowRunsStats.conclusion[v]} {capitalize(v)}
+                                        </Button>
+                                    ))}
                                 </HStack>
 
 
@@ -149,20 +161,20 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                                     x={500}
                                     y={25}
                                     textAnchor="middle"
-                                    text="Duration of successful runs"
+                                    text={`Duration of ${selectedConclusion} runs`}
                                 />
 
                                 <VictoryAxis dependentAxis label="Total number of runs"/>
                                 <VictoryAxis label="Time (minutes)"/>
 
                                 <VictoryHistogram
-                                    style={{data: {fill: "#28a745", strokeWidth: 0}}}
+                                    style={{data: {fill: `var(--chakra-colors-${conclusion2colorScheme[selectedConclusion]}-500)`, strokeWidth: 0}}}
                                     binSpacing={5}
                                     bins={50} // TODO: make the number of bins dynamic - perhaps a heuristic based on the number of data points?
                                     // data must be in this format: [ {x: t1}, {x: t2}, ... ]
                                     // also convert duration from second to minutes
                                     data={
-                                        workflowRunsStats.durations.success.map(successDuration => ({
+                                        workflowRunsStats.durations[selectedConclusion].map(successDuration => ({
                                             x: successDuration / 60
                                         }))
 
