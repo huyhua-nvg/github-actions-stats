@@ -35,6 +35,13 @@ const conclusion2colorScheme = {
 }
 const capitalize = s => s && s[0].toUpperCase() + s.slice(1)
 
+type RunResults = {
+    duration: number,
+    details: {
+        url: string
+    }
+}
+
 export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
     const [workflowRunsStats, setWorkflowRunsStats] = useState<any>({})
     const [selectedConclusion, setSelectedConclusion] = useState<Conclusions>("success")
@@ -61,10 +68,10 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                     },
                     // list of duration of runs in seconds for each conclusion
                     durations: {
-                        success: [] as number[],
-                        failure: [] as number[],
-                        cancelled: [] as number[],
-                        startup_failure: [] as number[],
+                        success: [] as RunResults[],
+                        failure: [] as RunResults[],
+                        cancelled: [] as RunResults[],
+                        startup_failure: [] as RunResults[],
                     },
                     earliestRun: new Date(8640000000000000).getTime(),
                     latestRun: new Date(-8640000000000000).getTime()
@@ -74,10 +81,13 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                     if (!run.conclusion || run.status !== "completed") continue
                     stats.conclusion[run.conclusion] += 1
 
-                    const createdAtTime = Date.parse(run.created_at)
+                    let createdAtTime = Date.parse(run.created_at)
+                    if (run.run_started_at) {
+                        createdAtTime = Date.parse(run.run_started_at)
+                    }
                     const updatedAtTime = Date.parse(run.updated_at)
                     const durationMs = updatedAtTime - createdAtTime
-                    stats.durations[run.conclusion].push(durationMs / 1000)
+                    stats.durations[run.conclusion].push({duration: durationMs / 1000, details:{ url: run.html_url}})
 
                     stats.earliestRun = Math.min(stats.earliestRun, createdAtTime)
                     stats.latestRun = Math.max(stats.latestRun, createdAtTime)
@@ -174,11 +184,29 @@ export const WorkflowStats = ({owner, repo, workflowId}: Props) => {
                                     // data must be in this format: [ {x: t1}, {x: t2}, ... ]
                                     // also convert duration from second to minutes
                                     data={
-                                        workflowRunsStats.durations[selectedConclusion].map(successDuration => ({
-                                            x: successDuration / 60
+                                        workflowRunsStats.durations[selectedConclusion].map(({duration, details}) => ({
+                                                x: duration / 60,
+                                                details
                                         }))
-
                                     }
+                                    events={[{
+                                        target: "data",
+                                        eventHandlers: {
+                                            onClick: () => {
+                                                return [
+                                                    {
+                                                        target: "data",
+                                                        mutation: (props) => {
+                                                            for (const d of props.datum.binnedData) {
+                                                                console.log(d.details.url)
+                                                            }
+                                                            return null;
+                                                        }
+                                                    }
+                                                ];
+                                            }
+                                        }
+                                    }]}
                                 />
                             </VictoryChart>
                         </Flex>
